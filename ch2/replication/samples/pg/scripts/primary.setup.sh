@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
 echo "Running setup_db.sh: Waiting for postgres to be ready..."

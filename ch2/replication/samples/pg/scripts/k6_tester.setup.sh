@@ -21,4 +21,4 @@ else
 fi
 
 echo "K6: Starting tests...";
-$BINARY_PATH run "$SCRIPT_PATH" --insecure-skip-tls-verify
+$BINARY_PATH run "$SCRIPT_PATH" --insecure-skip-tls-verify --out "$K6_OUT" --verbose 1>&2
