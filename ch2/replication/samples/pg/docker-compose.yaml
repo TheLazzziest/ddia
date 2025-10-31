@@ -1,0 +1,102 @@
+services:
+  postgres-primary:
+    image: postgres:16-alpine
+    container_name: postgres-primary
+    hostname: postgres-primary
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./conf/primary.conf:/usr/local/share/postgresql/postgresql.conf
+      # Mount the setup script
+      - ./scripts/primary.setup.sh:/docker-entrypoint-initdb.d/setup_db.sh
+      # pagila data init
+      - ./backups/pagila-schema.sql:/docker-entrypoint-initdb.d/1-pagila-schema.sql
+      - ./backups/pagila-schema-jsonb.sql:/docker-entrypoint-initdb.d/1-pagila-schema-jsonb.sql
+      - ./backups/pagila-data.sql:/docker-entrypoint-initdb.d/2-pagila-data.sql
+      # pagila json data chunks
+      - ./backups/pagila-data-yum-jsonb.backup:/docker-entrypoint-initdb.d/pagila-data-yum-jsonb.backup
+      - ./backups/pagila-data-apt-jsonb.backup:/docker-entrypoint-initdb.d/pagila-data-apt-jsonb.backup 
+      - ./backups/restore-pagila-data-jsonb.sh:/docker-entrypoint-initdb.d/3-restore-pagila-data-jsonb.sh
+      # Add persistent storage
+      - primary-data:/var/lib/postgresql/data
+    command: postgres -c config_file=/usr/local/share/postgresql/postgresql.conf
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pg_network
+
+  postgres-standby:
+    image: postgres:16-alpine
+    container_name: postgres-standby
+    hostname: postgres-standby
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: db
+    ports:
+      - "5433:5432"
+    volumes:
+      # Use the specific standby config
+      - ./conf/standby.conf:/usr/local/share/postgresql/postgresql.conf
+      - ./scripts/standby.setup.sh:/usr/local/bin/init_standby.sh
+      - standby-data:/var/lib/postgresql/data
+
+    # We use the standard Docker entrypoint for Postgres.
+    # it will handle the initialization process on the very first start.
+    entrypoint: ["init_standby.sh"]
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1024M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pg_network
+
+  k6-tester:
+    image: grafana/xk6
+    container_name: k6-load-tester
+    user: root
+    environment:
+      ARCH: ${ARCH?Define the architecture}
+    volumes:
+      - ./workers:/home/k6/scripts
+      - ./scripts/k6_tester.setup.sh:/usr/local/bin/init_setup.sh
+      - k6-binary-store:/home/k6/bin
+    networks:
+      - pg_network
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+      postgres-standby:
+        condition: service_healthy
+    entrypoint: ["init_setup.sh"]
+
+volumes:
+  primary-data:
+  standby-data:
+  k6-binary-store:
+
+
+networks:
+  pg_network:
