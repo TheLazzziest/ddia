@@ -26,7 +26,7 @@ export const options = {
     write_scenario: {
       executor: 'constant-vus',
       vus: 20,
-      duration: '300s',
+      duration: '60s',
       exec: 'writeWorkload', // This scenario runs the writeWorkload function
       tags: { service: 'primary-writes' },
     },
@@ -34,7 +34,7 @@ export const options = {
     read_scenario: {
       executor: 'constant-vus',
       vus: 30,
-      duration: '300s',
+      duration: '60s',
       exec: 'readWorkload', // This scenario runs the readWorkload function
       tags: { service: 'standby-reads' },
     },
