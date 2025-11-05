@@ -2,7 +2,6 @@
 set -e
 
 BINARY_PATH="/home/k6/bin/k6-with-sql"
-SCRIPT_PATH="/home/k6/scripts/read_write.k6.js"
 
 if [ ! -f "$BINARY_PATH" ]; then
 
@@ -21,4 +20,4 @@ else
 fi
 
 echo "K6: Starting tests...";
-$BINARY_PATH run "$SCRIPT_PATH" --insecure-skip-tls-verify
+$BINARY_PATH run --insecure-skip-tls-verify --verbose --log-output stderr --log-format raw "$1"
