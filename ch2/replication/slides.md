@@ -466,22 +466,11 @@ What happens when **concurrent operations** access the **same piece of data** ac
 
 ### **Replication**
 
-#### Consistency: Conflicts: Why
+#### Consistency: Conflicts: When
 
-* Each leader processes its operations independently.
-* Reads can happen from multiple nodes containing different versions.
-* Writes are then asynchronously replicated to other leaders.
-
----
-
-### **Replication**
-
-#### Consistency: Conflicts: Why
-
-Because writes can happen concurrently and independently on different leaders, they will inevitably lead to **write conflicts**.
-
-* **Example:** Two users simultaneously update the *same record* on *different leaders*.
-* **Result:** When these concurrent writes are replicated to each other, the database must decide which version "wins" – this is the **Conflict Resolution** challenge.
+* Each leader processes its operations independently. <!-- (write conflicts) -->
+* Reads can happen from multiple nodes containing different versions of data. <!-- (read conflicts) -->
+* Writes are asynchronously replicated to other leaders. <!-- (write conflicts) -->
 
 ---
 ### **Replication**
@@ -496,4 +485,193 @@ Because writes can happen concurrently and independently on different leaders, t
 
 ### **Replication**
 
-#### Consistency: Write Conflict Types
+#### Consistency: Conflicts: Types
+
+<!--  most multi-leader replication tools let you write conflict resolution logic using application code -->
+
+* **On Read**: the client sees data that doesn't reflect the system's true, latest state
+* **On Write**: clients write to the same portion of data on different nodes simultaneously
+
+---
+
+### **Replication**
+
+#### Consistency: Conflicts: Resolution
+
+A database must **converge towards a consistent state** <!-- Every replication scheme must ensure that the data is eventually the same in all replicas -->
+
+---
+
+### **Replication**
+
+#### Consistency: Convergence: Conflict Detection
+
+| Strategy | Mechanism| How Conflict is Detected
+| :--- | :--- | :--- |
+| **Last Write Wins (LWW)** | Adds a timestamp or globally unique transaction ID to every write operation or node receiving write operations.| The write or node with the highest timestamp or ID wins |  <!-- This is the simplest but least safe form of detection -->
+
+---
+
+
+### **Replication**
+
+#### Consistency: Convergence: Conflict Detection
+
+| Strategy | Mechanism| How Conflict is Detected
+| :--- | :--- | :--- |
+| **Version Vectors** | Each record maintains a map of version numbers for every replica that has written to it | "A write from Replica A conflicts if Replica B's version vector shows it committed a write that Replica A was not aware of | <!-- (i.e., the versions are logically concurrent). -->
+
+---
+
+### **Replication**
+
+#### Consistency: Convergence: Conflict Detection
+
+| Strategy | Mechanism| How Conflict is Detected
+| :--- | :--- | :--- |
+| **Causal Ordering** | Uses dependencies (e.g., Lamport clock or vector clock) to ensure writes are applied in a strict, causally-related sequence.| If a reply is seen before the original post, it's a causal violation that indicates a conflict or misapplication."
+
+---
+
+### **Replication**
+
+#### Consistency: Convergence: Conflict Resolution
+
+| Strategy | Description |
+| :--- | :--- |
+| **Automatic Resolution** | [LWW](https://www.linkedin.com/pulse/last-write-wins-database-systems-yeshwanth-n-emc8c/) | <!-- "Fast, but loses data if the earlier write was important. Prone to clock skew issues." -->
+| **Merging** | Uses a set of predefined rules (e.g., list append, set union) to combine divergent values. | <!-- "Complex, but preserves the most data. Requires data to be stored in a Conflict-Free Replicated Data Type (CRDT), Mergeable Data Structures <!-- GIT --> or using algorithm like [Operational Transformation](https://www.youtube.com/watch?v=OHd8M54-mNQ)" -->
+| **Application-Level** | The system rejects the transaction or marks the record as needing review. | <!-- "Safest, but slow and requires human or application code intervention to fix. Used for critical data (e.g., bank balance)."
+
+---
+
+### **Replication**
+
+#### Consistency: Convergence: Conflict Resolution
+
+| Strategy | Description |
+| :--- | :--- |
+| **Avoidance (By Design)** | Ensure all writes for a given entity (e.g., all updates to user_id=101) are routed to the same Leader/Partition. | <!-- Best Practice (eliminates the concurrent write possibility), but sacrifices the ability to write to any node. -->
+
+<!-- The **Replication Topology** defines the path and speed of data flow, profoundly impacting *when* and *where* a conflict must be detected and resolved. -->
+---
+
+### **Replication**
+
+<!-- Leader/Multi-Leader Replication -->
+
+#### Consistency: Convergence: Replication Topology: Circular <!-- (Ring) --> Topology
+
+**Description**: Replication flows in a single direction, forming a closed loop where each node receives changes from one neighbor and forwards them to the next.
+
+**Trade-off**: Simple to manage but suffers from the slowest convergence time, as changes must traverse the entire ring sequentially. Fault tolerance is low, as a single link failure partitions the entire replication system.
+
+---
+
+### **Replication**
+
+#### Consistency: Convergence: Replication Topology: Star <!-- (Hub-and-Spoke) --> Topology
+
+**Description**: One central node (the Hub) manages all replication traffic. All other nodes (Spokes) send their changes to the Hub, and the Hub is responsible for replicating the authoritative state back out to all Spokes.
+
+**Trade-off**: Offers centralized control for simplified conflict resolution and management. However, the Hub is a single point of failure (SPOF) and an absolute bottleneck for the entire system's write traffic.
+
+---
+
+### **Replication**
+
+#### Consistency: Convergence: Replication Topology: All-to-All <!-- (Full Mesh) --> Topology
+
+**Description**: Every replica is connected directly to every other replica in the cluster. A write on any node is simultaneously sent to all N−1 other nodes in parallel.
+
+**Trade-off**: Provides the fastest possible convergence time and high fault tolerance. However, it generates massive network traffic and dramatically increases the complexity of resolving concurrent write conflicts.
+
+
+---
+
+<!-- Leaderless Replication -->
+
+### **Replication**
+
+#### Consistency: Convergence: Replication Topology: Quorum
+
+What's the conceptual difference ?
+
+<!-- Quorum Replication removes the single point of control (the Leader) and replaces it with a consensus rule across a majority of nodes. -->
+
+---
+
+### **Replication**
+
+#### Consistency: Convergence: Replication Topology: Quorum
+
+**Core Mechanism**: N, W, and R
+
+---
+
+### **Replication**
+
+#### Consistency: Convergence: Replication Topology: Quorum
+
+| Parameter | Definition | What for |
+| :--- | :--- | :--- |
+| N | Number of total replicas <!-- The total number of nodes storing a copy of the data --> | Defines the cluster capacity |
+| W | Write Quorum | The minimum number of replicas that must successfully confirm the write before the coordinator returns ""Success"" to the client.| <!-- Controls Write Latency and RPO -->
+| R | Read Quorum | The minimum number of replicas that must be contacted for a read operation | <!-- Controls Read Latency and Staleness. -->
+
+<!-- How about the consitency ? -->
+---
+
+### **Replication**
+
+#### Consistency: Convergence: Replication Topology: Quorum
+
+<!-- Consistency is tunable by configuring read/write nodes -->
+
+| Condition | Resulting Consistency |
+| :--- | :--- | :--- |
+| **Strong Consistency** | W+R>N (e.g., N=3,W=2,R=2).| <!--Guarantees that the read set (R) and the write set (W) always overlap, ensuring the client retrieves the latest version. --> 
+| **Eventual Consistency** | W+R≤N (e.g., N=3,W=1,R=1) | <!-- Prioritizes speed and availability by minimizing the number of nodes required for a successful operation. Reads may return stale data. -->
+| **Conflict Handling** | Concurrent writes are inevitable | <!-- Conflicts are detected using Vector Clocks and resolved by the client, application logic, or Last Write Wins (LWW). -->
+
+<!-- What to do when divergence happens ? -->
+
+---
+
+### **Replication**
+
+#### Consistency: Convergence: Replication Topology: Quorum: State Divergence
+
+When a replica node is down or disconnected, it misses write updates, leading to State Divergence.
+
+---
+
+### **Replication**
+
+#### Consistency: Convergence: Replication Topology: Quorum: Read Repair <!-- (Repair on Access) -->
+
+Mechanism: A lazy, pull-based method. When a client reads data, the coordinator checks all R nodes in the quorum, detects any stale versions, and immediately writes the newest version back to the lagging node.
+
+Trade-off:
+
+    Pro: Repairs "hot data" efficiently, using client traffic to drive the fix.
+
+    Con: Stale data persists indefinitely on replicas that are not actively read ("cold data").
+
+---
+
+### **Replication**
+
+#### Consistency: Convergence: Replication Topology: Quorum: Anti-Entropy <!-- (Periodic Background Repair) -->
+
+Mechanism: An active, push-based background process. Nodes periodically compare their entire data set using checksums or Merkle Trees to quickly identify divergent data ranges.
+
+Trade-off:
+
+    Pro: Guarantees that all data (hot and cold) eventually converges.
+
+    Con: Generates significant, constant background network and disk I/O load, increasing operational costs and resource consumption.
+
+---
+
+
