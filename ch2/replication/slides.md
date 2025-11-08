@@ -399,9 +399,9 @@ A complete, physical snapshot of all database files (e..g, the `PGDATA` director
 
 ### **Replication**
 
-#### Streaming: The challange
+#### Streaming: Multi-Master: The challange
 
-_Which is the main one ?_ <!-- Replication Lag <=> consistency -->
+_Which is the main one ?_ <!-- Replication Lag between master nodes <=> consistency -->
 
 ---
 
@@ -560,7 +560,7 @@ A database must **converge towards a consistent state** <!-- Every replication s
 
 <!-- Leader/Multi-Leader Replication -->
 
-#### Consistency: Convergence: Replication Topology: Circular <!-- (Ring) --> Topology
+#### Replication Topology: Circular <!-- (Ring) --> Topology
 
 **Description**: Replication flows in a single direction, forming a closed loop where each node receives changes from one neighbor and forwards them to the next.
 
@@ -570,7 +570,7 @@ A database must **converge towards a consistent state** <!-- Every replication s
 
 ### **Replication**
 
-#### Consistency: Convergence: Replication Topology: Star <!-- (Hub-and-Spoke) --> Topology
+#### Replication Topology: Star <!-- (Hub-and-Spoke) --> Topology
 
 **Description**: One central node (the Hub) manages all replication traffic. All other nodes (Spokes) send their changes to the Hub, and the Hub is responsible for replicating the authoritative state back out to all Spokes.
 
@@ -580,7 +580,7 @@ A database must **converge towards a consistent state** <!-- Every replication s
 
 ### **Replication**
 
-#### Consistency: Convergence: Replication Topology: All-to-All <!-- (Full Mesh) --> Topology
+#### Replication Topology: All-to-All <!-- (Full Mesh) --> Topology
 
 **Description**: Every replica is connected directly to every other replica in the cluster. A write on any node is simultaneously sent to all N−1 other nodes in parallel.
 
@@ -593,7 +593,7 @@ A database must **converge towards a consistent state** <!-- Every replication s
 
 ### **Replication**
 
-#### Consistency: Convergence: Replication Topology: Quorum
+#### Replication: Quorum
 
 What's the conceptual difference ?
 
@@ -603,7 +603,17 @@ What's the conceptual difference ?
 
 ### **Replication**
 
-#### Consistency: Convergence: Replication Topology: Quorum
+#### Replication: Quorum: When
+
+1. Node Failure - a node dies instantly (e.g., hardware crash, OOM kill, sudden process termination). <!-- The rest of the cluster remains functional. -->
+
+2. Network Partition - The underlying network fabric fails, creating two or more isolated "islands" of nodes. <!-- All nodes are running but cannot communicate across the partition. -->
+
+---
+
+### **Replication**
+
+#### Replication: Quorum
 
 **Core Mechanism**: N, W, and R
 
@@ -611,7 +621,7 @@ What's the conceptual difference ?
 
 ### **Replication**
 
-#### Consistency: Convergence: Replication Topology: Quorum
+#### Replication: Quorum
 
 | Parameter | Definition | What for |
 | :--- | :--- | :--- |
@@ -624,7 +634,7 @@ What's the conceptual difference ?
 
 ### **Replication**
 
-#### Consistency: Convergence: Replication Topology: Quorum
+#### Replication: Quorum
 
 <!-- Consistency is tunable by configuring read/write nodes -->
 
@@ -640,7 +650,7 @@ What's the conceptual difference ?
 
 ### **Replication**
 
-#### Consistency: Convergence: Replication Topology: Quorum: State Divergence
+#### Replication: Quorum: State Divergence
 
 When a replica node is down or disconnected, it misses write updates, leading to State Divergence.
 
@@ -648,30 +658,60 @@ When a replica node is down or disconnected, it misses write updates, leading to
 
 ### **Replication**
 
-#### Consistency: Convergence: Replication Topology: Quorum: Read Repair <!-- (Repair on Access) -->
+#### Replication: Quorum: Standard Quorum
 
-Mechanism: A lazy, pull-based method. When a client reads data, the coordinator checks all R nodes in the quorum, detects any stale versions, and immediately writes the newest version back to the lagging node.
-
-Trade-off:
-
-    Pro: Repairs "hot data" efficiently, using client traffic to drive the fix.
-
-    Con: Stale data persists indefinitely on replicas that are not actively read ("cold data").
+* **Rule:** A write requires acknowledgment from **W** replicas out of **N** total replicas.
+* **Goal:** Guaranteeing $\text{W} + \text{R} > \text{N}$ for strong consistency.
+* **Failure:** If one of the required $\text{W}$ replicas is down, the write **FAILS** (reducing availability).
 
 ---
 
 ### **Replication**
 
-#### Consistency: Convergence: Replication Topology: Quorum: Anti-Entropy <!-- (Periodic Background Repair) -->
+#### Replication: Quorum: Sloppy Quorum
 
-Mechanism: An active, push-based background process. Nodes periodically compare their entire data set using checksums or Merkle Trees to quickly identify divergent data ranges.
+* **Mechanism:** When the designated coordinator node detects that one of the required $\text{W}$ replicas is **unavailable**, it temporarily writes the data to a **different, available node** outside the original ownership group.
+* **Goal:** Ensures that $W$ acknowledgments are always met by **any** available node, guaranteeing the write operation **succeeds** and client availability is maintained.
+* **Trade-off:** Data is written to the wrong node, leading to massive **State Divergence**.
 
-Trade-off:
-
-    Pro: Guarantees that all data (hot and cold) eventually converges.
-
-    Con: Generates significant, constant background network and disk I/O load, increasing operational costs and resource consumption.
+<!-- Sloppy Quorum prioritizes **Availability** over the strict location of data, sacrificing **Consistency** temporarily to ensure all client writes succeed. -->
 
 ---
 
+### **Replication**
 
+#### Replication: Quorum: Hinted Handoff
+
+* **Mechanism:** The temporary node that accepted the write (the "stand-in") includes a **"hint"** in the data indicating the original, intended recipient (the failed node).
+* **Process:** Once the original, failed node recovers, the stand-in node recognizes the hint and **hands the write off** to the correct destination. 
+* **Trade-off:** This process places a burden on the stand-in node, which must store the data and actively monitor the recovery of the failed node.
+
+---
+
+### **Replication**
+
+#### Replication: Quorum: Read Repair <!-- (Repair on Access) -->
+
+**Mechanism**: A lazy, **pull-based** method. When a client reads data, the coordinator checks all $\text{R}$ nodes in the quorum, detects any stale versions, and immediately writes the newest version back to the lagging node.
+
+**Trade-off**:
+
+  * **Pro**: Repairs "hot data" efficiently, using client traffic to drive the fix.
+
+  * **Con**: Stale data persists indefinitely on replicas that are not actively read ("cold data").
+
+---
+
+### **Replication**
+
+#### Replication: Quorum: Anti-Entropy <!-- (Periodic Background Repair) -->
+
+**Mechanism**: An active, **push-based** background process. Nodes periodically compare their entire data set using checksums or Merkle Trees to quickly identify divergent data ranges.
+
+**Trade-off**:
+
+  * **Pro**: Guarantees that all data (hot and cold) eventually converges.
+
+  * **Con**: Generates significant, constant background network and disk I/O load, increasing operational costs and resource consumption.
+
+---
