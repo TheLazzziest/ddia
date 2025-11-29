@@ -1,0 +1,8 @@
+syntax = "proto3";
+package v3;
+
+message Person {
+    string name = 1;
+    int32 id = 2;
+    int32 email = 3; // ERROR: Reused tag 3 with int32 instead of string!
+}
