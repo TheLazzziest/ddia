@@ -1,0 +1,7 @@
+services:
+  workshop:
+    build: .
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
