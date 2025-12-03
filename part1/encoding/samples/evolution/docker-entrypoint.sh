@@ -43,11 +43,11 @@ if [ "$COMPILE_NEEDED" = true ]; then
                     
                     # Fix imports in generated files to use relative imports
                     if [ -f "$SCHEMAS_DIR/person_service_pb2.py" ]; then
-                        sed -i 's/^import person_v\([12]\)_pb2 as/from . import person_v\1_pb2 as/' "$SCHEMAS_DIR/person_service_pb2.py"
+                        sed -i 's/^import person_v\([12]\)_pb2 as \(.*\)/from . import person_v\1_pb2 as \2/' "$SCHEMAS_DIR/person_service_pb2.py"
                     fi
                     if [ -f "$SCHEMAS_DIR/person_service_pb2_grpc.py" ]; then
-                        sed -i 's/^import person_service_pb2 as/from . import person_service_pb2 as/' "$SCHEMAS_DIR/person_service_pb2_grpc.py"
-                        sed -i 's/^import person_v\([12]\)_pb2 as/from . import person_v\1_pb2 as/' "$SCHEMAS_DIR/person_service_pb2_grpc.py"
+                        sed -i 's/^import person_service_pb2 as \(.*\)/from . import person_service_pb2 as \2/' "$SCHEMAS_DIR/person_service_pb2_grpc.py"
+                        sed -i 's/^import person_v\([12]\)_pb2 as \(.*\)/from . import person_v\1_pb2 as \2/' "$SCHEMAS_DIR/person_service_pb2_grpc.py"
                     fi
                 else
                     # Regular proto compilation
