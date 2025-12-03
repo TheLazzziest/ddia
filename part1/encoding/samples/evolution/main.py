@@ -1,43 +1,8 @@
-import os
 import sys
-import subprocess
-import importlib.util
 import json
+from schema_manager import compile_protos, load_module
 
 
-def compile_protos():
-    """Compiles all .proto files in schemas/ directory to Python code."""
-
-    print("🛠 Compiling Protobuf schemas...")
-
-    schemas_dir = "schemas"
-    proto_files = [f for f in os.listdir(schemas_dir) if f.endswith('.proto')]
-
-    for proto_file in proto_files:
-        cmd = [
-            "protoc",
-            f"-I={schemas_dir}",
-            f"--python_out={schemas_dir}",
-            os.path.join(schemas_dir, proto_file),
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            print(f"❌ Error compiling {proto_file}:\n{result.stderr}")
-            sys.exit(1)
-        else:
-            print(f"✅ Compiled {proto_file} successfully")
-
-def load_module(module_name):
-    """Dynamically import the compiled protobuf module."""
-
-    # schemas/person_v1_pb2.py
-    module_name = f"schemas.{module_name}_pb2"
-
-    try:
-        return importlib.import_module(module_name)
-    except ImportError as e:
-        print(f"❌ Could not import {module_name}: {e}")
-        sys.exit(1)
 
 def print_hex(data):
     """Pretty prints bytes in Hex format."""
@@ -168,10 +133,9 @@ def run_scenario_4():
     
     print(f"\n🎯 RESULT:")
     print(f"   Protobuf is {savings} bytes smaller ({savings_percent:.1f}% savings)!")
-    print(f"   That's {json_size // proto_size}x more compact!")
+    print(f"   That's {json_size / proto_size:.1f}x more compact!")
 
 if __name__ == "__main__":
-    compile_protos()
     
     if len(sys.argv) < 2:
         print("Usage: python main.py [1|2|3|4]")

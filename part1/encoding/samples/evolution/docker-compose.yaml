@@ -5,3 +5,35 @@ services:
       - .:/app
     environment:
       - PYTHONUNBUFFERED=1
+    networks:
+      - grpc-network
+    depends_on:
+      - server
+
+  server:
+    build: .
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+    ports:
+      - "50051:50051"
+    networks:
+      - grpc-network
+    command: ["python3", "server.py", "50051"]
+
+  client:
+    build: .
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+    networks:
+      - grpc-network
+    depends_on:
+      - server
+    command: ["python3", "client.py", "server:50051"]
+
+networks:
+  grpc-network:
+    driver: bridge

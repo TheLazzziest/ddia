@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package person;
+
+// Import existing Person schemas
+import "person_v1.proto";
+import "person_v2.proto";
+
+// PersonService demonstrates schema evolution over network
+service PersonService {
+    // Create a person (server uses v2, client can use v1 or v2)
+    rpc CreatePerson(v2.Person) returns (PersonResponse);
+    
+    // Get person by ID (returns v2.Person)
+    rpc GetPerson(PersonRequest) returns (v2.Person);
+    
+    // List all persons
+    rpc ListPersons(ListRequest) returns (ListResponse);
+}
+
+message PersonResponse {
+    bool success = 1;
+    string message = 2;
+    int32 person_id = 3;
+}
+
+message PersonRequest {
+    int32 person_id = 1;
+}
+
+message ListRequest {
+    int32 limit = 1;
+}
+
+message ListResponse {
+    repeated v2.Person persons = 1;
+    int32 total = 2;
+}
+

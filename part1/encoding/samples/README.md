@@ -13,13 +13,23 @@ We use **Protocol Buffers** (protobuf) as the encoding format.
 
 The workshop consists of 4 scenarios demonstrating different aspects of evolution.
 
-### How to Run
-
 Navigate to the `evolution` directory:
 
 ```bash
 cd evolution
 ```
+
+## Setup
+
+**First time setup** - Build the Docker image:
+
+```bash
+docker compose build
+```
+
+This will install all dependencies and configure the environment. Protobuf schemas are automatically compiled when you run a container - the entrypoint checks if compilation is needed and only compiles if `.proto` files have changed.
+
+## Running Scenarios
 
 Run scenarios using Docker:
 
@@ -28,7 +38,7 @@ Run scenarios using Docker:
 See how an object is turned into Hex bytes.
 
 ```bash
-docker compose run --rm workshop python main.py 1
+docker compose run --rm workshop python3 main.py 1
 ```
 
 **Scenario 2: Forward Compatibility**
@@ -36,7 +46,7 @@ docker compose run --rm workshop python main.py 1
 See how old code (V1) gracefully handles data written by new code (V2).
 
 ```bash
-docker compose run --rm workshop python main.py 2
+docker compose run --rm workshop python3 main.py 2
 ```
 
 **Scenario 3: Breaking Changes (Silent Failure)**
@@ -44,7 +54,7 @@ docker compose run --rm workshop python main.py 2
 See what happens when you reuse a Tag ID with a different data type. Spoiler: The app won't crash, but data will be silently lost!
 
 ```bash
-docker compose run --rm workshop python main.py 3
+docker compose run --rm workshop python3 main.py 3
 ```
 
 **Scenario 4: Size Battle (JSON vs Protobuf)**
@@ -52,7 +62,35 @@ docker compose run --rm workshop python main.py 3
 Compare the memory footprint of JSON vs Protobuf encoding. See how much space you can save by using binary formats!
 
 ```bash
-docker compose run --rm workshop python main.py 4
+docker compose run --rm workshop python3 main.py 4
+```
+
+## gRPC Client/Server Demo
+
+This workshop also includes a gRPC client/server demonstration that shows schema evolution over a real network connection.
+
+**Starting the gRPC Server:**
+
+```bash
+docker compose up -d server
+```
+
+The server will start on port 50051 and use `person_v2` schema internally.
+
+**Running the gRPC Client:**
+
+```bash
+docker compose run --rm client
+```
+
+The client uses `person_v1` schema to demonstrate forward compatibility - it can successfully interact with the server even though the server uses a newer schema version.
+
+This demonstrates how schema evolution works in real distributed systems where clients and servers may be running different versions of the schema.
+
+**Stopping the server:**
+
+```bash
+docker compose down
 ```
 
 ## Key Concepts
@@ -62,3 +100,4 @@ docker compose run --rm workshop python main.py 4
 3.  **Wire Types**: How Protobuf stores data types (Varint vs Length Delimited).
 4.  **Silent Data Loss**: When types mismatch, parsers might just drop the data instead of crashing. This is dangerous!
 5.  **Memory Efficiency**: Binary formats like Protobuf are typically 2-3x smaller than JSON because they don't store field names and use compact number encoding.
+6.  **Network Interaction**: gRPC demonstrates how schema evolution works in real distributed systems with network communication.
