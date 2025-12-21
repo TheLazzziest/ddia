@@ -1,0 +1,12 @@
+[project]
+name = "examples"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "clickhouse-connect>=0.10.0",
+    "ipykernel>=7.1.0",
+    "jupysql>=0.11.1",
+    "psycopg2-binary>=2.9.11",
+]
