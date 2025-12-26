@@ -1,6 +1,6 @@
 services:
     # PostgreSQL: The B-Tree / Heap / OLTP representative
-    postgres-db:
+    postgres:
         image: postgres:17-alpine
         environment:
             POSTGRES_USER: admin
@@ -23,7 +23,7 @@ services:
         image: clickhouse/clickhouse-server:latest
         ports:
             - "8123:8123" # HTTP
-            - "9000:9000" # Native client
+            - "9010:9000" # Native client
         ulimits:
             nofile:
                 soft: 262144
