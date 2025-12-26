@@ -7,8 +7,7 @@
 # 3. Isolation Levels
 # 4. Locking & Partitioning
 # 5. Mutations (The Anti-Pattern)
-# 6.
-
+# 6. Use cases
 
 # %% [setup]
 # ### Setup the environment

@@ -2,24 +2,22 @@
 # # **Goal**: OLTP Persistence & ACID Compliance
 # **Structure:** B-Tree + Heap Storage
 # Agenda:
-# 1. Setu
+# 1. Setup
 # 2. Basic Usage
 # 3. Isolation Levels
 # 4. Locking & Partitioning
-# 5. Real use cases
+# 5. Use cases
 
 # %% [setup]
 # ### Setup the environment
 %load_ext sql
-# Connect to Postgres
-postgres_url = "postgresql://admin:password@localhost:5432/acid_test"
+%config SqlMagic.feedback = False
 
 # Create aliases
-%sql $postgres_url --alias pg
-%sql $postgres_url --alias session_a
-%sql $postgres_url --alias session_b
+%sql postgresql+psycopg2://admin:password@localhost:5432/acid_test --alias pg
+%sql postgresql+psycopg2://admin:password@localhost:5432/acid_test --alias session_a
+%sql postgresql+psycopg2://admin:password@localhost:5432/acid_test --alias session_b
 
-%config SqlMagic.feedback = False
 print("✅ Sessions A and B are ready.")
 
 # %% [markdown]
@@ -32,14 +30,14 @@ CREATE TABLE pg_users (id INT PRIMARY KEY, name TEXT);
 INSERT INTO pg_users VALUES (1, 'Alice');
 
 # %% [markdown]
-# ### 2. The MVCC "Snapshot"
+# ### Examine MVCC "Snapshot"
 # Observe `xmin` (ID of the transaction that created the row).
 # %%
 %%sql pg
 SELECT *, xmin, xmax FROM pg_users;
 
 # %% [markdown]
-# ### 3. In-Place Update (Actually an Append)
+# ### MVCC In-Place Update (Actually an Append)
 # When we update, Postgres creates a new version.
 # %%
 %%sql pg
@@ -79,7 +77,7 @@ SELECT *, xmin FROM pg_demo;
 
 # %% [markdown]
 # ## Case: Isolation Levels
-
+# %%
 
 # %% [markdown]
 # ## Isolation: Read Commited
@@ -87,10 +85,17 @@ SELECT *, xmin FROM pg_demo;
 # We show that Session A sees data change *during* its transaction because Session B committed.
 
 # %%
-%%sql session_a
+# Create a table for tracking balance
+# %%
+%%sql pg
 DROP TABLE IF EXISTS accounts;
 CREATE TABLE accounts (id INT, balance INT);
 INSERT INTO accounts VALUES (1, 1000);
+
+# %%
+# First user starts a transaction
+# %% 
+%%sql session_a
 BEGIN ISOLATION LEVEL READ COMMITTED;
 -- Snapshot 1
 SELECT balance FROM accounts WHERE id = 1;
