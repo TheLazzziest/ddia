@@ -12,11 +12,11 @@
 # %% [setup]
 # ### Setup the environment
 %load_ext sql
+%config SqlMagic.feedback = False
 
 # Connect to ClickHouse using the 'ch' alias
-%sql clickhouse://default:@localhost:8123/default --alias ch
+%sql clickhouse://default@localhost:8123/default --alias ch
 
-%config SqlMagic.feedback = False
 print("✅ Sessions A and B are ready.")
 
 # %% [markdown]
@@ -65,10 +65,10 @@ SELECT name, active, rows FROM system.parts WHERE table = 'ch_users';
 # %%
 %%sql ch
 -- If this fails halfway, no rows will appear in the table.
-INSERT INTO users_ch (id, username, balance) VALUES
-(10, 'User10', 100),
-(11, 'User11', 200),
-(12, 'User12', 300);
+INSERT INTO ch_users (id, name) VALUES
+(10, 'User10'),
+(11, 'User11'),
+(12, 'User12');
 
 -- You will never see a "partial" result from a single INSERT block.
 SELECT count() FROM users_ch WHERE id >= 10;
@@ -79,7 +79,7 @@ SELECT count() FROM users_ch WHERE id >= 10;
 # %%
 %%sql ch
 -- Start a long-running query (simulated)
-SELECT sleep(3), username FROM users_ch;
+SELECT sleep(3), username FROM ch_users;
 
 -- [In another window, run an INSERT]
 -- INSERT INTO users_ch VALUES (99, 'LateArrival', 500);

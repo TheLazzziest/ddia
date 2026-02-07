@@ -25,16 +25,45 @@ print("✅ Sessions A and B are ready.")
 # Every row in the Heap is a "tuple" with metadata.
 # %%
 %%sql pg
+CREATE EXTENSION IF NOT EXISTS pageinspect;
 DROP TABLE IF EXISTS pg_users;
 CREATE TABLE pg_users (id INT PRIMARY KEY, name TEXT);
 INSERT INTO pg_users VALUES (1, 'Alice');
+
+# %% [markdown]
+# ### Transactional DDL (WAL Logged)
+# In Postgres, DDL commands (CREATE, ALTER, DROP) are written to the Write-Ahead Log (WAL).
+# This means they are fully transactional and can be rolled back.
+# %%
+%%sql pg
+BEGIN;
+CREATE TABLE pg_ghost (id int);
+-- Oops, changed my mind
+ROLLBACK;
+
+-- The table does not exist (returns NULL)
+SELECT to_regclass('pg_ghost');
+
+# %% [markdown]
+# ### Current Transaction ID
+# To see the current transaction identifier (which increments globally), use `txid_current()`.
+# This helps compare against `xmin` values in rows.
+# %%
+%%sql pg
+SELECT txid_current();
 
 # %% [markdown]
 # ### Examine MVCC "Snapshot"
 # Observe `xmin` (ID of the transaction that created the row).
 # %%
 %%sql pg
-SELECT *, xmin, xmax FROM pg_users;
+SELECT ctid, xmin, xmax, * FROM pg_users;
+
+# %% [markdown]
+# Locate the tuples on physical pages to track the lineage
+# %%
+%%sql pg
+SELECT lp, t_xmin, t_xmax, t_ctid FROM heap_page_items(get_raw_page('pg_users', 0));
 
 # %% [markdown]
 # ### MVCC In-Place Update (Actually an Append)
@@ -53,7 +82,8 @@ SELECT *, xmin, xmax FROM pg_users;
 # %%
 %%sql pg
 VACUUM FULL pg_users;
-SELECT *, xmin, xmax FROM pg_users;
+SELECT ctid, xmin, xmax, * FROM pg_users;
+SELECT lp, t_xmin, t_xmax, t_ctid FROM heap_page_items(get_raw_page('pg_users', 0));
 
 # %% [markdown]
 # ### Case: The "Dead Row" (Bloat) Effect
@@ -74,6 +104,32 @@ UPDATE pg_demo SET val = 'Version 2' WHERE id = 1;
 -- We can see the version change via xmin.
 SELECT *, xmin FROM pg_demo;
 
+
+# %% [markdown]
+# ## Case: TOAST (The Oversized-Attribute Storage Technique)
+# Postgres pages are fixed size (usually 8KB). Rows cannot span pages.
+# If a row is too big, Postgres moves large columns to a separate "TOAST" table.
+
+# %%
+%%sql pg
+DROP TABLE IF EXISTS pg_toast_demo;
+CREATE TABLE pg_toast_demo (id INT, content TEXT);
+
+-- 1. Insert a small row (Stored inline)
+INSERT INTO pg_toast_demo VALUES (1, 'Small string');
+
+-- 2. Insert a massive row (Larger than 8KB page)
+-- repeat('A', 20000) creates a string ~20KB, forcing TOAST
+INSERT INTO pg_toast_demo VALUES (2, repeat('A', 20000));
+
+# %%
+%%sql pg
+-- 3. Check storage usage
+-- pg_relation_size('table') = Main Heap size
+-- pg_table_size('table') = Main Heap + TOAST (excluding indexes)
+SELECT 
+    pg_size_pretty(pg_relation_size('pg_toast_demo')) as heap_size,
+    pg_size_pretty(pg_table_size('pg_toast_demo') - pg_relation_size('pg_toast_demo')) as toast_size;
 
 # %% [markdown]
 # ## Case: Isolation Levels
@@ -151,16 +207,16 @@ COMMIT;
 %%sql pg
 -- Transaction A
 BEGIN ISOLATION LEVEL REPEATABLE READ;
-SELECT balance FROM users_pg WHERE id = 1; -- Initial: 100
+SELECT SUM(amount) FROM sales WHERE category = 'Electronics'; -- Initial: 800
 
 -- [Transaction B (Session 2) updates and commits]
--- UPDATE users_pg SET balance = 500 WHERE id = 1; COMMIT;
+-- UPDATE sales SET amount = 500 WHERE id = 1; COMMIT;
 
 -- Transaction A executes again
-SELECT balance FROM users_pg WHERE id = 1; -- Still: 100! (Snapshot preserved)
+SELECT SUM(amount) FROM sales WHERE category = 'Electronics'; -- Initial: 800
 
 -- BUT: If Transaction A tries to update that same row:
-UPDATE users_pg SET balance = 600 WHERE id = 1;
+UPDATE sales SET amount = 600 WHERE id = 1;
 -- ERROR: could not serialize access due to concurrent update
 ROLLBACK;
 
@@ -254,27 +310,6 @@ SELECT SUM(balance) as total_now FROM bank_accounts;
 # ## Case: Locking & Partitioning
 
 # %% [markdown]
-# ### Visualizing the Lock Tree
-# We will lock a single row and see how many "Intent" locks are created.
-# %%
-%%sql pg
--- Transaction 1
-BEGIN;
--- Updating a single row in a specific partition
-UPDATE orders_2024 SET amount = 99.99 WHERE id = 1;
-
--- Now, look at the lock 'Mode'.
--- You'll see RowExclusiveLock on the partition AND the parent table.
-SELECT
-    relname as table_name,
-    mode,
-    type,
-    granted
-FROM pg_locks l
-JOIN pg_class c ON l.relation = c.oid
-WHERE relname LIKE 'orders%';
-
-# %% [markdown]
 # ### Partitioning (The Logical vs. Physical)
 # We create a parent table and specific children (partitions).
 # %%
@@ -298,18 +333,47 @@ INSERT INTO orders (order_date, amount) VALUES ('2023-06-15', 100.00);
 INSERT INTO orders (order_date, amount) VALUES ('2024-02-10', 250.00);
 
 # %% [markdown]
-# ### The Multi-Partition Atomic Commit
-# One transaction, two physical tables, absolute consistency.
+# ### Visualizing the Lock Tree
+# We will lock a single row and see how many "Intent" locks are created.
 # %%
 %%sql pg
+-- Transaction 1
 BEGIN;
+-- Updating a single row in a specific partition
+UPDATE orders_2024 SET amount = 99.99 WHERE id = 1;
 
+-- Now, look at the lock 'Mode'.
+-- You'll see RowExclusiveLock on the partition AND the parent table.
+SELECT
+    relname as table_name,
+    mode,
+    locktype,
+    granted
+FROM pg_locks l
+JOIN pg_class c ON l.relation = c.oid
+WHERE relname LIKE 'orders%';
+
+# %% [markdown]
+# ### Concurrent Access to Partitions
+# Different transactions can modify different partitions simultaneously.
+# Locking is granular (per-partition), not global (parent table).
+# %%
+%%sql session_a
+BEGIN;
 -- Update Row in Partition A (2023)
-UPDATE orders SET amount = 0 WHERE order_date = '2023-12-31' AND id = 50;
+UPDATE orders SET amount = 555 WHERE id = 1;
 
+# %%
+%%sql session_b
+BEGIN;
 -- Update Row in Partition B (2024)
-UPDATE orders SET amount = 500 WHERE order_date = '2024-01-01' AND id = 51;
+-- This proceeds immediately, proving that Session A did not lock the whole 'orders' table.
+UPDATE orders SET amount = 666 WHERE id = 2;
 
--- At this moment, neither change is visible to other users.
+# %%
+%%sql session_a
 COMMIT;
--- Now, both changes appear simultaneously across the logical 'orders' table.
+
+# %%
+%%sql session_b
+COMMIT;
