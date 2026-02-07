@@ -35,7 +35,7 @@ By comparing these two, you will gain a deep understanding of the trade-offs inh
    ```bash
    docker-compose up -d
    ```
-2. Install [uv](https://github.com/uv/uv)
+2. Install [uv](https://docs.astral.sh/uv/)
 3. Sync the environment variables:
    ```bash
    uv sync
