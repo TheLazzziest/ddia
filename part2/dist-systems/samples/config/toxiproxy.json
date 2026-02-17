@@ -1,0 +1,14 @@
+[
+    {
+      "name": "node1_proxy",
+      "listen": "[::]:10001",
+      "upstream": "node1:5678",
+      "enabled": true
+    },
+    {
+      "name": "node2_proxy",
+      "listen": "[::]:10002",
+      "upstream": "node2:5678",
+      "enabled": true
+    }
+  ]

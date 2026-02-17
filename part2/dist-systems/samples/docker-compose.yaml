@@ -1,0 +1,65 @@
+
+services:
+  # Toxiproxy manages the "flaky" connections
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.5.0
+    container_name: toxiproxy
+    volumes:
+      - ./config/toxiproxy.json:/config/toxiproxy.json
+    command: ["-host", "0.0.0.0", "-config", "/config/toxiproxy.json"]
+    ports:
+      - "8474:8474" # Management API
+      - "10001:10001" # Proxied port for Node 1
+      - "10002:10002" # Proxied port for Node 2
+    networks:
+      - lab-net
+
+  # Distributed Node 1
+  node1:
+    container_name: node1
+    image: hashicorp/http-echo
+    command: ["-text", "I am Node 1"]
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5' # Case 2: Simulating limited CPU/Slowness
+          memory: 50M
+    networks:
+      - lab-net
+
+  # Distributed Node 2
+  node2:
+    container_name: node2
+    image: hashicorp/http-echo
+    command: ["-text", "I am Node 2"]
+    restart: always
+    networks:
+      - lab-net
+
+  pumba:
+    image: gaiaadm/pumba
+    container_name: pumba
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    # This command tells Pumba to:
+    # 1. Look for containers with names starting with "node"
+    # 2. Every 30 seconds, pick ONE at random (--random)
+    # 3. Pause it for 10s
+    command: 
+      - "--interval"
+      - "30s"
+      - "--random"
+      - "pause"
+      - "--duration"
+      - "10s"
+      - "re2:^node"
+    networks:
+      - lab-net
+    profiles:
+      - chaos-testing
+
+networks:
+  lab-net:
+    name: ddia_lab_net
+    driver: bridge

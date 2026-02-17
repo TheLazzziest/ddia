@@ -74,6 +74,14 @@ What is the goal ? <!-- To ensure that transactions do not interfere with each o
 When it applies ? <!-- When data storage is critical -->
 What is the goal ? <!-- To ensure that committed transactions are not lost or corrupted by system failures, power outages, or other unexpected events -->
 
+---
+
+### Transactions: Theory vs Practice
+
+We defined the rules (ACID).
+
+**How do storage engines actually implement them?**
+
 ### Transactions: ACID: Persistence
 
 When it comes to persistance data structures: LSM-Tree vs B+Tree; how ACID is achieved ? What are the trade-offs between the two?
@@ -135,6 +143,14 @@ B+Tree provides better capabilities because the object address is fixed in terms
 
 LSM-Tree, on the other hand, are inherently lock-free due to their append-only nature and the use of compaction in the background in most implementations. However, to achive consistency, many of them use conflict resolution based on Timestamps, so the latest version wins always.
 -->
+
+---
+
+### Transactions: Concurrency
+
+We know how to store data safely.
+
+**But what happens when everyone tries to touch it at the same time?**
 
 ---
 
