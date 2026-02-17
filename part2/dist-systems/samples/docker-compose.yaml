@@ -36,7 +36,7 @@ services:
     restart: always
     networks:
       - lab-net
-  
+
   pumba:
     image: gaiaadm/pumba
     container_name: pumba

@@ -208,6 +208,6 @@ Which model fits the real world (Internet/Datacenter)?
 
 * **Synchronous?** <!-- No. Delays are unbounded. -->
 * **Asynchronous?** <!-- Too hard. We can't distinguish crash from delay. -->
-* **Partially Synchronous?** **Yes.** <!-- We assume the system eventually behaves well enough to make progress. -->
+* **Partially Synchronous?** <!-- Yes. We assume the system eventually behaves well enough to make progress. -->
 
 ---
